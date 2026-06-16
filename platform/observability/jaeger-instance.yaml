@@ -1,0 +1,57 @@
+# Jaeger CR — all-in-one in-memory backend for dev.
+#
+# Single pod, ephemeral storage; the operator wires up the OTLP receiver on
+# 4317/4318 and exposes a `jaeger-collector.<jaeger-ns>:4317` Service
+# that the OTel Collector exporter targets (see
+# platform/observability/otel-collector.yaml).
+#
+# Production overlay (Phase 3): switch to `production` strategy with an
+# Elasticsearch or Cassandra backend, set replicas, enable ingress on the
+# Istio gateway.
+#
+# Wave -2: after jaeger-operator (-16) so the CRD exists.
+apiVersion: jaegertracing.io/v1
+kind: Jaeger
+metadata:
+  name: jaeger
+  namespace: jaeger
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  strategy: allInOne
+  storage:
+    type: memory
+    options:
+      memory:
+        max-traces: 50000
+
+  collector:
+    # Enables OTLP gRPC + HTTP receivers on 4317 / 4318.
+    options:
+      collector:
+        otlp:
+          enabled: true
+        grpc:
+          host-port: ":14250"
+        http:
+          host-port: ":14268"
+
+  query:
+    # No ingress on the kind cluster; access via:
+    #   kubectl -n jaeger port-forward svc/jaeger-query 16686:16686
+    options:
+      query:
+        base-path: /
+    serviceType: ClusterIP
+
+  ingress:
+    enabled: false
+
+  # Resource caps for the all-in-one pod.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi

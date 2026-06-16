@@ -1,0 +1,37 @@
+# RabbitMQ Cluster Operator (upstream rabbitmq/cluster-operator).
+#
+# Installs the RabbitmqCluster CRD + the operator Deployment in
+# `rabbitmq-system`.  We track the upstream repo at a pinned release tag
+# and let Argo CD reconcile via its kustomize directory; this keeps us
+# on the official manifest path rather than the (separately maintained)
+# Bitnami Helm chart.
+#
+# Sync wave -17: alongside cnpg-operator, before any CR (wave -2).
+# automated.selfHeal: false on first sync to avoid CRD/CR thrash.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rabbitmq-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-17"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/rabbitmq/cluster-operator.git
+    targetRevision: v2.10.0
+    path: config/default
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: rabbitmq-system
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

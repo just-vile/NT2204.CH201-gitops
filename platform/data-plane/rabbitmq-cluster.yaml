@@ -1,0 +1,72 @@
+# RabbitmqCluster CR — single-node broker for dev.
+#
+# Cluster name is `rabbitmq` (matches what the saga services point at:
+# RabbitMq__Host=rabbitmq.saga.svc.cluster.local). The operator emits a
+# Service named after the cluster, so this is the only naming knob that
+# matters.
+#
+# 1 replica for dev (no quorum). For prod overlays, set replicas: 3 +
+# enable persistent storage > 1Gi + the `ha-mode` policy.
+#
+# Default user/password come from the operator's auto-generated Secret
+# `rabbitmq-default-user`. We DO NOT use that for app pods — the saga
+# services pull RabbitMq__{Username,Password} from the SealedSecret
+# `rabbitmq-creds` (environments/local/secrets/rabbitmq-creds.sealedsecret.yaml.example).
+# Phase 2.5 backlog: provision the saga user via a Vault-style hook or
+# a one-shot Job that runs `rabbitmqctl add_user` with the sealed creds.
+#
+# Wave -2: after the rabbitmq-cluster-operator (-17) so the CRD exists.
+apiVersion: rabbitmq.com/v1beta1
+kind: RabbitmqCluster
+metadata:
+  name: rabbitmq
+  namespace: saga
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    app.kubernetes.io/part-of: saga
+spec:
+  replicas: 1
+  image: rabbitmq:3.13-management
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  # Persistence: small in dev. Each replica gets a PVC of this size.
+  persistence:
+    storage: 1Gi
+
+  rabbitmq:
+    additionalConfig: |
+      log.console.level = info
+      cluster_partition_handling = pause_minority
+      vm_memory_high_watermark_paging_ratio = 0.5
+      total_memory_available_override_value = 1GB
+    additionalPlugins:
+      - rabbitmq_management
+      - rabbitmq_prometheus
+
+  # Make the management UI scrape-friendly. The operator already exposes
+  # /metrics on port 15692 via the rabbitmq_prometheus plugin; the
+  # cross-cutting ServiceMonitor (selecting part-of=saga) picks it up.
+  override:
+    service:
+      spec:
+        ports:
+          - name: amqp
+            port: 5672
+            targetPort: 5672
+            protocol: TCP
+          - name: management
+            port: 15672
+            targetPort: 15672
+            protocol: TCP
+          - name: prometheus
+            port: 15692
+            targetPort: 15692
+            protocol: TCP

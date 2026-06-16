@@ -1,0 +1,36 @@
+# OrderService — saga-service chart override.
+#
+# image.tag is bumped on every push-to-main by app/.github/workflows/bump-gitops.yml
+# (`yq -i '.image.tag = "sha-<full-commit>"' environments/local/values-order-service.yaml`).
+image:
+  repository: ghcr.io/REPLACE_ME_OWNER/saga-order-service
+  tag: dev
+  pullPolicy: IfNotPresent
+
+nameOverride: order-service
+fullnameOverride: order-service
+
+# Plain env-vars (non-sensitive). Sensitive values are pulled from k8s
+# Secrets via envFromSecrets below — sealed under environments/local/secrets/
+# (Phase 2 sealed-secrets).
+env:
+  ASPNETCORE_ENVIRONMENT: Development
+  ASPNETCORE_URLS: http://0.0.0.0:8080
+  RabbitMq__Host: rabbitmq.saga.svc.cluster.local
+  RabbitMq__VirtualHost: "/"
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.saga.svc.cluster.local:4317
+  OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+
+# Phase 2: sensitive credentials sourced from sealed Secrets in `saga` ns.
+#   - rabbitmq-creds      <- environments/local/secrets/rabbitmq-creds.sealedsecret.yaml
+#   - postgres-app-creds  <- environments/local/secrets/postgres-app-creds.sealedsecret.yaml
+envFromSecrets:
+  - name: RabbitMq__Username
+    secretName: rabbitmq-creds
+    key: RabbitMq__Username
+  - name: RabbitMq__Password
+    secretName: rabbitmq-creds
+    key: RabbitMq__Password
+  - name: ConnectionStrings__Postgres
+    secretName: postgres-app-creds
+    key: ConnectionStrings__Postgres__order

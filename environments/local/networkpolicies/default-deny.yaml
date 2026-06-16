@@ -1,0 +1,14 @@
+# Default-deny for the saga namespace.  Combined with allow-dns + allow-mesh
+# this gives a baseline "nothing in saga can talk to anything unless explicitly
+# allowed" posture.  Phase 2 will add more granular policies (e.g. only
+# inventory-service can reach the inventory DB).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: saga
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress

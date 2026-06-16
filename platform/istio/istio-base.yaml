@@ -1,0 +1,30 @@
+# Istio CRDs — installs the `base` Helm chart from istio-release storage.
+# Sync wave -10: lands BEFORE istiod (-5) so CRDs exist when the control plane
+# starts.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: istio-base
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://istio-release.storage.googleapis.com/charts
+    chart: base
+    targetRevision: 1.23.2
+    helm:
+      releaseName: istio-base
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: istio-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false   # ns is created by platform/istio/namespace.yaml
+      - ServerSideApply=true    # required for large Istio CRDs

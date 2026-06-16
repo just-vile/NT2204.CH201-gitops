@@ -1,0 +1,68 @@
+# Istio ingress gateway data plane.
+#
+# Service is NodePort with explicit nodePorts (30080/30443) that match the
+# kind-config.yaml extraPortMappings on the worker node labelled
+# ingress-ready=true. The pod is pinned to that worker via nodeSelector.
+#
+# Lives in `istio-system` (deviation from the spec's "saga-system" — see
+# README§Decisions). The AuthorizationPolicy for web-ui references
+# cluster.local/ns/istio-system/sa/istio-ingressgateway, matching this SA name.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: istio-ingressgateway
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://istio-release.storage.googleapis.com/charts
+    chart: gateway
+    targetRevision: 1.23.2
+    helm:
+      releaseName: istio-ingressgateway
+      values: |
+        replicaCount: 1
+        service:
+          type: NodePort
+          ports:
+            - name: status-port
+              port: 15021
+              targetPort: 15021
+            - name: http2
+              port: 80
+              targetPort: 80
+              nodePort: 30080
+            - name: https
+              port: 443
+              targetPort: 443
+              nodePort: 30443
+        nodeSelector:
+          ingress-ready: "true"
+        tolerations:
+          - key: node-role.kubernetes.io/control-plane
+            operator: Exists
+            effect: NoSchedule
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        serviceAccount:
+          create: true
+          name: istio-ingressgateway
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: istio-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

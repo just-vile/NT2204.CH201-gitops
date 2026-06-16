@@ -1,0 +1,50 @@
+# Jaeger Operator.
+#
+# Installs the Jaeger CRD and the operator Deployment.  The Jaeger CR
+# (jaeger-instance.yaml) provisions an all-in-one in-memory backend in
+# the `jaeger` ns at wave -2 and exposes OTLP gRPC on port 4317 via the
+# `jaeger-collector` Service that the OTel Collector exporter targets.
+#
+# Sync wave -16: after sealed-secrets + DB operators, before kube-prom-stack
+# (-1) — order matters because kube-prom-stack scrapes Jaeger metrics.
+# automated.selfHeal: false on first sync (CRD ordering).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jaeger-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-16"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://jaegertracing.github.io/helm-charts
+    chart: jaeger-operator
+    targetRevision: 2.57.0
+    helm:
+      releaseName: jaeger-operator
+      values: |
+        rbac:
+          clusterRole: true
+        # Watch every namespace; the Jaeger CR lives in `jaeger`.
+        jaeger:
+          create: false
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: jaeger
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

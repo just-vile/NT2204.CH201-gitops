@@ -1,0 +1,43 @@
+# Allow:
+#   - ingress from istio-system (the ingress gateway)
+#   - ingress from inside the saga namespace (sidecar-to-sidecar / pod-to-pod)
+#   - egress to istio-system on 15012 (istiod XDS) and 15014 (telemetry)
+#   - egress within the saga namespace (e.g. RabbitMQ, Postgres in Phase 2)
+#
+# kube-apiserver-bound egress (used by Kubernetes clients) is intentionally NOT
+# allowed here — saga services are not k8s API clients.  Add a targeted policy
+# in Phase 2 if a service starts watching CRDs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-mesh
+  namespace: saga
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-system
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: saga
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: istio-system
+      ports:
+        - protocol: TCP
+          port: 15012
+        - protocol: TCP
+          port: 15014
+        - protocol: TCP
+          port: 15010
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: saga

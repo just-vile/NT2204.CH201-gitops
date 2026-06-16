@@ -1,0 +1,53 @@
+# Cluster-wide pod / autoscaler health.  Source metrics come from
+# kube-state-metrics (bundled with kube-prometheus-stack).
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: kubernetes-health
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: saga
+    prometheus: kps-prometheus
+spec:
+  groups:
+    - name: kubernetes.health
+      interval: 30s
+      rules:
+        # > 0 restarts/sec for 10m == crash-loop. Filters on the saga ns
+        # because the alert is for application owners; cluster-level
+        # crashes have their own separate dashboard.
+        - alert: PodCrashLoop
+          expr: |
+            rate(kube_pod_container_status_restarts_total{namespace=~"saga|monitoring|jaeger|cnpg-system|rabbitmq-system|sealed-secrets"}[10m]) > 0
+          for: 10m
+          labels:
+            severity: warning
+            component: kubernetes
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} crashlooping"
+            description: |
+              Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} is restarting at {{ $value }} restarts/sec (10m).
+
+        - alert: PodOOMKilled
+          expr: |
+            kube_pod_container_status_last_terminated_reason{reason="OOMKilled", namespace=~"saga|monitoring|jaeger|cnpg-system|rabbitmq-system|sealed-secrets"} > 0
+          for: 0m
+          labels:
+            severity: critical
+            component: kubernetes
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} OOMKilled"
+            description: "Container {{ $labels.container }} in pod {{ $labels.namespace }}/{{ $labels.pod }} was OOMKilled — bump memory limits or investigate leak."
+
+        - alert: HpaMaxedOut
+          expr: |
+            kube_horizontalpodautoscaler_status_current_replicas{namespace="saga"}
+              ==
+            kube_horizontalpodautoscaler_spec_max_replicas{namespace="saga"}
+          for: 30m
+          labels:
+            severity: warning
+            component: kubernetes
+          annotations:
+            summary: "HPA {{ $labels.horizontalpodautoscaler }} pegged at max"
+            description: "HPA {{ $labels.namespace }}/{{ $labels.horizontalpodautoscaler }} has been at max replicas for 30 minutes — bump max or investigate sustained load."

@@ -1,0 +1,41 @@
+# Istio control plane (istiod). Sync wave -5: after CRDs (-10), before gateway (-3).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: istiod
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://istio-release.storage.googleapis.com/charts
+    chart: istiod
+    targetRevision: 1.23.2
+    helm:
+      releaseName: istiod
+      values: |
+        pilot:
+          autoscaleEnabled: false
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+        global:
+          # Telemetry/tracing wired in Phase 2 with the OTel Collector.
+          proxy:
+            tracer: ""
+          logging:
+            level: "default:info"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: istio-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

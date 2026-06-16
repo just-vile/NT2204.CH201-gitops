@@ -1,0 +1,69 @@
+# Saga choreography SLO alerts.
+#
+# Metric names mirror app/src/Shared/Saga.Shared.Infrastructure (the
+# `saga` Meter — see TelemetryConstants.SagaMeterName + the saga_terminal
+# counter that PaymentService emits on AcceptOrderConsumer / RejectOrderConsumer).
+#
+# The thresholds are dev-friendly; tighten in prod overlays.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: saga-slo
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: saga
+    prometheus: kps-prometheus  # match kube-prom-stack default release naming
+spec:
+  groups:
+    - name: saga.slo
+      interval: 30s
+      rules:
+        # Compensation rate: > 20% of saga terminations over 15m =
+        # something is failing systemically (inventory shortage spike,
+        # payment provider outage, etc).
+        - alert: SagaCompensationRateHigh
+          expr: |
+            (
+              sum(rate(saga_terminal_total{outcome="cancelled"}[15m]))
+              /
+              clamp_min(sum(rate(saga_terminal_total[15m])), 0.001)
+            ) > 0.2
+          for: 15m
+          labels:
+            severity: warning
+            component: saga
+          annotations:
+            summary: "Saga compensation rate above 20% (15m)"
+            description: |
+              {{ printf "%.1f%% of saga terminations were cancellations over the last 15 minutes" (mul $value 100) }}.
+              Investigate inventory / payment / shipping consumer error logs.
+
+        # HTTP 5xx error rate > 5% across saga services.
+        - alert: HighRequestErrorRate
+          expr: |
+            (
+              sum by (service) (rate(http_server_request_duration_seconds_count{status_code=~"5..", service=~".*-service|web-ui"}[10m]))
+              /
+              clamp_min(sum by (service) (rate(http_server_request_duration_seconds_count{service=~".*-service|web-ui"}[10m])), 0.001)
+            ) > 0.05
+          for: 10m
+          labels:
+            severity: warning
+            component: saga
+          annotations:
+            summary: "{{ $labels.service }}: 5xx > 5% over 10m"
+            description: "Service {{ $labels.service }} is returning 5xx for more than 5% of requests."
+
+        # p95 HTTP latency > 1s. Threshold is generous; tighten per service.
+        - alert: HighLatencyP95
+          expr: |
+            histogram_quantile(0.95,
+              sum by (service, le) (rate(http_server_request_duration_seconds_bucket{service=~".*-service|web-ui"}[10m]))
+            ) > 1
+          for: 10m
+          labels:
+            severity: warning
+            component: saga
+          annotations:
+            summary: "{{ $labels.service }}: p95 latency > 1s (10m)"
+            description: "Service {{ $labels.service }} p95 latency is {{ $value }}s — investigate slow downstream calls."

@@ -1,0 +1,22 @@
+# kind cluster for the saga gitops Phase 1.
+# 1 control-plane + 2 workers; one worker is labelled ingress-ready and exposes
+# host ports 80/443 -> NodePorts 30080/30443. The Istio ingress gateway pod is
+# pinned to that worker via nodeSelector (see platform/istio/istio-gateway.yaml).
+apiVersion: kind.x-k8s.io/v1alpha4
+kind: Cluster
+name: saga
+networking:
+  apiServerAddress: 127.0.0.1
+nodes:
+  - role: control-plane
+  - role: worker
+    labels:
+      ingress-ready: "true"
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 80
+        protocol: TCP
+      - containerPort: 30443
+        hostPort: 443
+        protocol: TCP
+  - role: worker

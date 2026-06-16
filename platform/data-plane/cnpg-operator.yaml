@@ -1,0 +1,52 @@
+# CloudNativePG operator.
+#
+# Installs the CNPG CRDs (Cluster, Pooler, Backup, ScheduledBackup, etc.) and
+# the operator Deployment in `cnpg-system`. The Postgres `Cluster` CR for the
+# saga lives in `platform/data-plane/postgres-cluster.yaml` and waits at
+# wave -2 for the CRDs to land first.
+#
+# Sync wave -17: after namespaces + sealed-secrets, before any CR (wave -2).
+# automated: { prune: false, selfHeal: false } on first sync — operator
+# upgrades that touch CRD schemas can race CRs; once steady-state we'll
+# flip self-heal back on (Phase 3).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cnpg-operator
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-17"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://cloudnative-pg.github.io/charts
+    chart: cloudnative-pg
+    targetRevision: 0.22.1
+    helm:
+      releaseName: cnpg
+      values: |
+        fullnameOverride: cnpg
+        crds:
+          create: true
+        replicaCount: 1
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+        monitoring:
+          podMonitorEnabled: false      # Phase 2 will add a ServiceMonitor via kube-prom-stack
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cnpg-system
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

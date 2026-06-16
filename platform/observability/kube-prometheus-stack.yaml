@@ -1,0 +1,160 @@
+# kube-prometheus-stack: Prometheus + Alertmanager + Grafana.
+#
+# Configured for "discover everything" so ServiceMonitors and PrometheusRules
+# anywhere in the cluster (saga ns, monitoring ns, etc.) get picked up
+# without explicit selector wiring:
+#   - prometheus.serviceMonitorSelectorNilUsesHelmValues: false
+#   - prometheus.podMonitorSelectorNilUsesHelmValues: false
+#   - prometheus.ruleSelectorNilUsesHelmValues: false
+#
+# Grafana sidecar discovers dashboards from any ConfigMap labelled
+# `grafana_dashboard: "1"` cluster-wide.
+#
+# Alertmanager has external receivers DISABLED (no email/slack); the dev
+# default is "fire to nothing" — re-enable per-environment in Phase 3.
+#
+# Sync wave -1: after the data-plane and OTel collector, before saga apps
+# (wave 0).  We keep automated.selfHeal: false on first sync because
+# kube-prometheus-stack ships ~15 CRDs and a self-heal during partial CRD
+# apply will thrash; flip true once steady-state.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 65.5.0
+    helm:
+      releaseName: kube-prometheus-stack
+      values: |
+        fullnameOverride: kps
+        crds:
+          enabled: true
+
+        # ----- Prometheus -----
+        prometheus:
+          prometheusSpec:
+            retention: 7d
+            scrapeInterval: 15s
+            evaluationInterval: 15s
+            # Discover every ServiceMonitor / PodMonitor / PrometheusRule in
+            # every namespace (no helm-managed selector).
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            ruleSelectorNilUsesHelmValues: false
+            probeSelectorNilUsesHelmValues: false
+            scrapeConfigSelectorNilUsesHelmValues: false
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                cpu: 1000m
+                memory: 2Gi
+            # 5Gi is enough for 7d at the saga's metric volume.
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 5Gi
+
+        # ----- Alertmanager -----
+        alertmanager:
+          alertmanagerSpec:
+            retention: 120h
+            resources:
+              requests:
+                cpu: 25m
+                memory: 64Mi
+              limits:
+                cpu: 200m
+                memory: 256Mi
+          # No external receivers in dev. Alerts route to a "null" receiver
+          # so PrometheusRule firings show in the Alertmanager UI but don't
+          # email/slack anyone.
+          config:
+            route:
+              receiver: "null"
+              group_by: ["alertname", "namespace"]
+              group_wait: 30s
+              group_interval: 5m
+              repeat_interval: 4h
+            receivers:
+              - name: "null"
+            inhibit_rules:
+              - source_matchers: ["severity = critical"]
+                target_matchers: ["severity = warning"]
+                equal: ["alertname", "namespace"]
+
+        # ----- Grafana -----
+        grafana:
+          # Admin password is sourced from a SealedSecret in the monitoring ns
+          # (see environments/local/secrets/grafana-admin.sealedsecret.yaml.example).
+          admin:
+            existingSecret: grafana-admin
+            userKey: admin-user
+            passwordKey: admin-password
+          defaultDashboardsEnabled: true
+          # Sidecar discovers ConfigMaps with label grafana_dashboard=1 in any ns.
+          sidecar:
+            dashboards:
+              enabled: true
+              label: grafana_dashboard
+              labelValue: "1"
+              searchNamespace: ALL
+              folderAnnotation: grafana_folder
+              provider:
+                allowUiUpdates: false
+                foldersFromFilesStructure: true
+            datasources:
+              enabled: true
+              label: grafana_datasource
+              labelValue: "1"
+              searchNamespace: ALL
+          # Default Prometheus datasource auto-wired to the in-cluster Prom.
+          additionalDataSources:
+            - name: Jaeger
+              type: jaeger
+              uid: jaeger
+              url: http://jaeger-query.jaeger.svc.cluster.local:16686
+              access: proxy
+              editable: false
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+        # ----- node-exporter / kube-state-metrics: keep defaults (small & lean). -----
+
+        # ----- Disable bundled scrape rules we don't need in dev (etcd / kube-controller-manager / kube-scheduler are unreachable on kind without extra config). -----
+        kubeEtcd:
+          enabled: false
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+        kubeProxy:
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

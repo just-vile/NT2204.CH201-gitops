@@ -1,0 +1,15 @@
+# Argo CD install — kustomize over upstream v2.12.6 (stable).
+#
+# NOTE: this file is named kustomization.yaml (not the spec's argocd-install.yaml)
+# because `kubectl apply -k` and `kustomize build` only recognise that name.
+# Decision is documented in README§Decisions.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: argocd
+
+resources:
+  - namespace.yaml
+  - https://raw.githubusercontent.com/argoproj/argo-cd/v2.12.6/manifests/install.yaml
+
+# Argo CD self-manages its CRDs once the install is in place.  We pin v2.12.6
+# here; bump in lockstep with the argocd CLI version used by operators.

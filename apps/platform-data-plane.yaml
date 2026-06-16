@@ -1,0 +1,37 @@
+# Reconciles platform/data-plane/* — CNPG operator + Postgres Cluster CR
+# + RabbitMQ cluster-operator + RabbitmqCluster CR.
+#
+# directory.recurse: false because this folder is flat: one YAML per
+# resource at the top level, with sync-wave annotations on the resources
+# themselves enforcing operator-before-CR ordering (-17 then -2).
+#
+# Wave -17 here is informational; the resource-level annotations drive the
+# actual ordering.  automated.selfHeal: false on first sync — see Phase 2
+# README§Decisions.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-data-plane
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-17"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/REPLACE_ME_OWNER/saga-gitops.git
+    targetRevision: main
+    path: platform/data-plane
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

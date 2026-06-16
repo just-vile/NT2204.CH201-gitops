@@ -1,0 +1,142 @@
+# Default values for saga-service.
+# Per-service overrides live in environments/<env>/values-<service>.yaml.
+#
+# `image.tag` MUST be a top-level key (`.image.tag`) so the bump-gitops workflow
+# in the app/ repo can `yq -i '.image.tag = "sha-<sha>"' values-<svc>.yaml`.
+
+# nameOverride / fullnameOverride control the rendered resource names; set per
+# service so the Deployment/Service/SA come out as e.g. "order-service".
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/REPLACE_ME_OWNER/saga-service
+  tag: dev
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: ""        # if blank, helper derives from fullname
+  annotations: {}
+
+# K8s Service.  Istio mesh routes by named ports; "http" is required for HTTP
+# protocol detection by the sidecar.
+service:
+  type: ClusterIP
+  port: 8080
+  portName: http
+
+# Container port — must match the .NET service Kestrel binding (8080 in app/).
+containerPort: 8080
+
+# Liveness/readiness — see app/src/Shared/Saga.Shared.Infrastructure/HostingExtensions.cs
+probes:
+  liveness:
+    path: /healthz/live
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  readiness:
+    path: /healthz/ready
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Plain env-vars rendered into the Deployment as `name`/`value` pairs.
+# Map of string -> string. Order is not preserved (k8s does not care).
+# Values mirror app/docker-compose.yml; service-specific overrides
+# (DB name, Apis__*) are set in environments/local/values-<svc>.yaml.
+#
+# Sensitive values (RabbitMq__{Username,Password}, ConnectionStrings__Postgres)
+# are sourced from sealed Secrets via `envFromSecrets` in
+# environments/<env>/values-<svc>.yaml — they do NOT appear here.
+env:
+  ASPNETCORE_ENVIRONMENT: Development
+  ASPNETCORE_URLS: http://0.0.0.0:8080
+  RabbitMq__Host: rabbitmq.saga.svc.cluster.local
+  RabbitMq__VirtualHost: "/"
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.saga.svc.cluster.local:4317
+  OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+  # ConnectionStrings__Postgres is set per service via envFromSecrets in values-<svc>.yaml.
+
+# Env var sourced from a Secret. Wired for Phase 2 sealed-secrets; unused
+# in Phase 1.  Each item: { name, secretName, key }.
+envFromSecrets: []
+#  - name: ConnectionStrings__Postgres
+#    secretName: saga-postgres-order
+#    key: ConnectionStrings__Postgres
+
+# String-to-string ConfigMap. Rendered as a ConfigMap and mounted via
+# `envFrom: configMapRef` so every key becomes an env-var. Empty by default.
+config: {}
+
+# Pod-level securityContext.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1654          # arbitrary high UID; matches mcr.microsoft.com/dotnet/aspnet:8.0 default
+  runAsGroup: 1654
+  fsGroup: 1654
+  seccompProfile:
+    type: RuntimeDefault
+
+# Container-level securityContext.
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  privileged: false
+  runAsNonRoot: true
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# Empty-dir for /tmp (read-only root FS). Override volumes/volumeMounts to
+# add more (e.g. for caching) per service.
+tmpVolume:
+  enabled: true
+  sizeLimit: 64Mi
+
+# Extra volumes/mounts (advanced; usually unnecessary).
+extraVolumes: []
+extraVolumeMounts: []
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+# Per-service NetworkPolicy.  Disabled in Phase 1 — namespace-scope
+# default-deny + allow-mesh + allow-dns in environments/local/networkpolicies/
+# already cover the cluster.  Flip to true in Phase 2 for fine-grained L3/L4
+# defence-in-depth on top of Istio AuthorizationPolicy.
+networkPolicy:
+  enabled: false
+
+# `ingress.enabled` is intentionally absent — Istio Gateway covers north/south
+# routing.  No K8s Ingress is rendered by this chart.
+
+# Pod labels & annotations get merged onto the Deployment template.
+podLabels: {}
+podAnnotations: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

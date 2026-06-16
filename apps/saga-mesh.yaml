@@ -1,0 +1,36 @@
+# Reconciles the saga-namespace mesh policy + L3/L4 NetworkPolicies:
+#   - environments/local/istio/        (Gateway, VirtualService, DestinationRules,
+#                                       PeerAuthentication, AuthorizationPolicy)
+#   - environments/local/networkpolicies/ (default-deny, allow-dns, allow-mesh)
+#
+# Sync wave 5: lands AFTER the saga services (wave 0).  Default-deny applied
+# before any service exists would be safe but pointless; applying after means
+# the services come up healthy, then the policy is tightened around them.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: saga-mesh
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/REPLACE_ME_OWNER/saga-gitops.git
+    targetRevision: main
+    path: environments/local
+    directory:
+      recurse: true
+      include: '{istio/*.yaml,networkpolicies/*.yaml}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: saga
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

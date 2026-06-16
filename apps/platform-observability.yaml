@@ -1,0 +1,36 @@
+# Reconciles platform/observability/* — Jaeger operator + Jaeger CR + OTel
+# Collector + kube-prometheus-stack.
+#
+# directory.recurse: false. Sync-wave annotations on each child enforce
+# operator-before-CR ordering (-16 jaeger-operator, -2 jaeger CR + OTel,
+# -1 kube-prometheus-stack).
+#
+# automated.selfHeal: false on first sync — kube-prometheus-stack ships
+# ~15 CRDs and a partial-CRD self-heal will thrash.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-observability
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-16"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/REPLACE_ME_OWNER/saga-gitops.git
+    targetRevision: main
+    path: platform/observability
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: false
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

@@ -1,0 +1,113 @@
+# Default-deny for the saga namespace + explicit allows for the only traffic
+# patterns Phase 1 supports:
+#   1. istio-ingressgateway (in istio-system) -> web-ui
+#   2. web-ui SA -> order/payment/inventory/shipping SAs
+#
+# Saga services do NOT make synchronous calls to each other (choreography);
+# the policy reflects that.  Async event traffic flows through RabbitMQ
+# (cluster-local Service, Phase 2) and is allowed implicitly because all
+# four services have the same egress target in the same namespace.
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: default-deny
+  namespace: saga
+spec:
+  # action defaults to ALLOW; empty rules == "no requests match" == deny all.
+  {}
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-ingressgateway-to-web-ui
+  namespace: saga
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: web-ui
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/istio-system/sa/istio-ingressgateway
+      to:
+        - operation:
+            methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-webui-to-order
+  namespace: saga
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: order-service
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/saga/sa/web-ui
+      to:
+        - operation:
+            methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-webui-to-payment
+  namespace: saga
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: payment-service
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/saga/sa/web-ui
+      to:
+        - operation:
+            methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-webui-to-inventory
+  namespace: saga
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: inventory-service
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/saga/sa/web-ui
+      to:
+        - operation:
+            methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-webui-to-shipping
+  namespace: saga
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: shipping-service
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/saga/sa/web-ui
+      to:
+        - operation:
+            methods: ["GET", "POST", "PUT", "DELETE", "PATCH"]

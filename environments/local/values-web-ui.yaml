@@ -1,0 +1,31 @@
+# WebUI — saga-service chart override.
+#
+# Different from the other 4 services in two ways:
+#   1. No Postgres or RabbitMQ — empty ConnectionStrings__Postgres and a
+#      readiness probe that does NOT include those checks.  In Phase 1 the
+#      WebUI image still inherits the shared health-check wiring; if its
+#      `/healthz/ready` fails for missing deps, override probes here.
+#   2. Apis__* env-vars point at the in-cluster k8s services (port 8080).
+#
+# image.tag is bumped on every push-to-main by app/.github/workflows/bump-gitops.yml.
+image:
+  repository: ghcr.io/REPLACE_ME_OWNER/saga-web-ui
+  tag: dev
+  pullPolicy: IfNotPresent
+
+nameOverride: web-ui
+fullnameOverride: web-ui
+
+env:
+  ASPNETCORE_ENVIRONMENT: Development
+  ASPNETCORE_URLS: http://0.0.0.0:8080
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.saga.svc.cluster.local:4317
+  OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+  Apis__Order: http://order-service.saga.svc.cluster.local:8080
+  Apis__Payment: http://payment-service.saga.svc.cluster.local:8080
+  Apis__Inventory: http://inventory-service.saga.svc.cluster.local:8080
+  Apis__Shipping: http://shipping-service.saga.svc.cluster.local:8080
+  ExternalLinks__Jaeger: http://localhost:16686
+  ExternalLinks__RabbitMq: http://localhost:15672
+  ExternalLinks__Grafana: http://localhost:3000
+  ExternalLinks__Prometheus: http://localhost:9090

@@ -1,0 +1,16 @@
+apiVersion: v2
+name: saga-service
+description: |
+  Generic Helm chart for any of the saga choreography microservices
+  (order, payment, inventory, shipping, web-ui). Per-service overrides live
+  in environments/<env>/values-<service>.yaml.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - saga
+  - choreography
+  - dotnet
+  - rabbitmq
+maintainers:
+  - name: gitops-engineer

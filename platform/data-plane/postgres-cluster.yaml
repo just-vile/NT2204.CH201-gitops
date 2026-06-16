@@ -1,0 +1,75 @@
+# CloudNativePG Cluster CR — single-instance Postgres for the saga.
+#
+# 1 instance for dev (kind); bump `instances` to 3 for production overlays.
+# 4 logical databases (orders, payments, inventory, shipping) bootstrapped
+# via postInitApplicationSQL — CNPG runs that SQL once, in the
+# `bootstrap.initdb.database` (here `app`), as the operator-managed
+# superuser. Replicates app/build/postgres/init.sql.
+#
+# Credentials:
+#   - superuserSecret: postgres-superuser-creds   (sealed; created by the
+#     SealedSecret in environments/local/secrets/postgres-app-creds.sealedsecret.yaml.example
+#     once sealed). The Secret must contain keys `username` + `password`.
+#   - bootstrap.initdb.secret: postgres-app-creds (sealed). Same Secret
+#     also stores the per-service `ConnectionStrings__Postgres__<svc>` keys
+#     consumed by the saga services via envFromSecrets.
+#
+# Wave -2: lands AFTER the CNPG operator (-17) so the CRD exists.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres
+  namespace: saga
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  instances: 1
+
+  # Use a small image; bump for prod.
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.4
+
+  # Storage per instance. 1Gi covers the 4 logical DBs in dev.
+  storage:
+    size: 1Gi
+
+  # Resources: minimum viable; keep tight on kind.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: 64MB
+
+  # Bootstrap: create the `app` database (CNPG default) and on first start
+  # run the postInitApplicationSQL inside it as the app user.  We use this
+  # to spin up the 4 service-owned databases; each service connects to its
+  # own DB on the same Postgres Service.
+  bootstrap:
+    initdb:
+      database: app
+      owner: saga
+      secret:
+        name: postgres-app-creds
+      postInitApplicationSQL:
+        - CREATE DATABASE orders OWNER saga;
+        - CREATE DATABASE payments OWNER saga;
+        - CREATE DATABASE inventory OWNER saga;
+        - CREATE DATABASE shipping OWNER saga;
+
+  # superuser password (postgres role).
+  superuserSecret:
+    name: postgres-superuser-creds
+
+  # Disable backups in dev (kind cluster has no S3-compatible target).
+  # Phase 3: wire to MinIO or AKS-Blob for prod overlays.
+  backup:
+    retentionPolicy: 7d
+
+  monitoring:
+    enablePodMonitor: true

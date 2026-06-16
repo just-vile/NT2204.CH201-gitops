@@ -1,0 +1,32 @@
+# Root Argo CD Application — the "app of apps".
+#
+# Reconciles every YAML in the apps/ directory (recursive=false; only top-level
+# files are scanned).  Each child YAML is itself an Argo CD Application that
+# manages its own slice of the cluster.
+#
+# The bootstrap-kind script substitutes the placeholder repoURL on apply.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-of-apps
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/REPLACE_ME_OWNER/saga-gitops.git
+    targetRevision: main
+    path: apps
+    directory:
+      recurse: false
+      jsonnet: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false

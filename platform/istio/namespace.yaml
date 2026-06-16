@@ -1,0 +1,24 @@
+# Saga + Istio control-plane namespaces.
+# Argo CD applies these at sync wave -20 so every other resource lands after
+# the namespaces exist (CreateNamespace=false on the istio Helm Applications).
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: istio-system
+  labels:
+    name: istio-system
+    # istiod itself runs here; do not enable injection.
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: saga
+  labels:
+    name: saga
+    istio-injection: enabled
+    pod-security.kubernetes.io/enforce: baseline
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"

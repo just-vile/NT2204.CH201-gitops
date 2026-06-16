@@ -1,0 +1,34 @@
+# Reconciles environments/local/{service-monitors,prometheus-rules,grafana-dashboards}/*
+#
+# Lands at wave 10 — AFTER the saga services (wave 0) and the saga mesh
+# (wave 5).  Reason: ServiceMonitors targeting `app.kubernetes.io/part-of=saga`
+# are useless until the actual Services exist, and PrometheusRules
+# referencing app metrics are pointless until they're scrapable.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: saga-monitoring
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/REPLACE_ME_OWNER/saga-gitops.git
+    targetRevision: main
+    path: environments/local
+    directory:
+      recurse: true
+      include: '{service-monitors/*.yaml,prometheus-rules/*.yaml,grafana-dashboards/*.yaml}'
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

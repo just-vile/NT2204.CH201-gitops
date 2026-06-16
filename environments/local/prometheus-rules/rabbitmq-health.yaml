@@ -1,0 +1,54 @@
+# RabbitMQ broker health alerts.
+#
+# Metric names come from the rabbitmq_prometheus plugin (enabled in
+# platform/data-plane/rabbitmq-cluster.yaml). The cross-cutting
+# ServiceMonitor scrapes :15692 via the named "prometheus" port.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: rabbitmq-health
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: saga
+    prometheus: kps-prometheus
+spec:
+  groups:
+    - name: rabbitmq.health
+      interval: 30s
+      rules:
+        # Any DLQ (suffix `_error` per project naming convention) with
+        # messages for 5m straight — choreography saga safety net firing.
+        - alert: DLQDepthGrowing
+          expr: rabbitmq_queue_messages{queue=~".*_error"} > 0
+          for: 5m
+          labels:
+            severity: critical
+            component: rabbitmq
+          annotations:
+            summary: "DLQ {{ $labels.queue }} has {{ $value }} messages"
+            description: |
+              Dead-letter queue {{ $labels.queue }} on host {{ $labels.rabbitmq_node }} has held messages for 5+ minutes.
+              Inspect the consumer logs for the parent queue and decide to retry or drop.
+
+        # Unacked > 100 for 5m: a consumer is stuck or massively lagging.
+        - alert: ConsumerLagHigh
+          expr: rabbitmq_queue_messages_unacknowledged > 100
+          for: 5m
+          labels:
+            severity: warning
+            component: rabbitmq
+          annotations:
+            summary: "{{ $labels.queue }}: {{ $value }} unacked"
+            description: "Queue {{ $labels.queue }} has > 100 unacked messages for 5+ minutes."
+
+        # Ready-message backlog growing for 30m: a producer is faster than
+        # the consumer and there's no autoscale catching up.
+        - alert: QueueGrowingUnboundedly
+          expr: deriv(rabbitmq_queue_messages_ready[10m]) > 0
+          for: 30m
+          labels:
+            severity: warning
+            component: rabbitmq
+          annotations:
+            summary: "{{ $labels.queue }} backlog growing 30m"
+            description: "Queue {{ $labels.queue }} ready-message backlog has been growing for 30 minutes — consumer cannot keep up."

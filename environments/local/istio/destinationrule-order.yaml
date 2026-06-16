@@ -1,0 +1,15 @@
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: order-service
+  namespace: saga
+spec:
+  host: order-service.saga.svc.cluster.local
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50

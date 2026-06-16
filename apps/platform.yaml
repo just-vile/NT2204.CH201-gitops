@@ -1,0 +1,31 @@
+# Reconciles platform/istio/* — namespaces + 3 Istio Helm Applications
+# (base, istiod, gateway).  The argocd Helm install (platform/argocd/) is
+# bootstrapped out-of-band by scripts/bootstrap-kind.* and is intentionally
+# NOT managed by Argo CD in Phase 1.  Argo self-management is Phase 2.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-istio
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-15"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/REPLACE_ME_OWNER/saga-gitops.git
+    targetRevision: main
+    path: platform/istio
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

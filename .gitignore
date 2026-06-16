@@ -1,0 +1,30 @@
+# Local secrets / kubeconfigs (NEVER commit)
+*.kubeconfig
+kubeconfig*
+.kube/
+secrets/
+sealed-secrets-key*.yaml
+*-tls.yaml
+*.pem
+*.key
+*.crt
+.env
+.env.*
+
+# Helm
+charts/*/charts/
+charts/*/Chart.lock
+*.tgz
+
+# Tooling / IDE
+.vs/
+.vscode/
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Rendered / temp
+rendered/
+tmp/
+*.bak

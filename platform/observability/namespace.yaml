@@ -1,0 +1,31 @@
+# Observability namespaces.
+#  - monitoring: Prometheus, Alertmanager, Grafana, OpenTelemetry collector
+#    (NOTE: OTel Collector lives in `saga` ns instead — see
+#    platform/observability/otel-collector.yaml — this ns hosts only the
+#    Prom/Grafana sidecar workloads).
+#  - jaeger:     Jaeger operator + the all-in-one Jaeger CR (dev) or a
+#    production deployment in later phases.
+#
+# Both are istio-injection: enabled-OFF.  Mesh-traffic into these namespaces
+# is k8s-native (Service IP), not Istio-managed.  ServiceMonitors in the
+# saga ns are scraped via cluster DNS, no sidecar required on the scraper.
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    name: monitoring
+    pod-security.kubernetes.io/enforce: baseline
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jaeger
+  labels:
+    name: jaeger
+    pod-security.kubernetes.io/enforce: baseline
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"

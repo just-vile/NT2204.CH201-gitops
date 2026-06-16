@@ -1,0 +1,62 @@
+# Cross-cutting ServiceMonitor for every saga workload.
+#
+# Decision (Phase 2): one ServiceMonitor selecting `app.kubernetes.io/part-of: saga`
+# rather than per-service ServiceMonitors rendered from the chart. Reasons:
+#   - simpler: one resource, one place to tune scrape interval / relabel
+#   - the saga-service chart already stamps `part-of: saga` on every Service
+#     (templates/_helpers.tpl: saga-service.labels)
+#   - the OTel Collector Service is also labelled part-of=saga
+#     (platform/observability/otel-collector.yaml extraLabels), so :8889
+#     gets scraped by the same selector with no extra wiring
+#
+# Targets per service:
+#   /metrics on the named "http" port (8080), every 15s.
+# The .NET services expose Prometheus scrape on the SAME port as the app
+# (UseSagaPrometheusEndpoint() in OpenTelemetryExtensions.cs) so we reuse
+# the existing http port instead of declaring a sidecar metrics port.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: saga-services
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: saga
+spec:
+  jobLabel: app.kubernetes.io/name
+  namespaceSelector:
+    matchNames:
+      - saga
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: saga
+  endpoints:
+    # Saga services + RabbitmqCluster amqp/management Service expose http :8080
+    # and the OTel Collector exposes :8889 (prometheus exporter). Use both.
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      relabelings:
+        # Trim "kubernetes_pod_name" / "instance" to just the pod name; pods
+        # behind a headless service inherit FQDN otherwise.
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_service_label_app_kubernetes_io_name]
+          targetLabel: service
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+    - port: prometheus
+      # RabbitmqCluster's prometheus plugin port (15692). The Service from
+      # platform/data-plane/rabbitmq-cluster.yaml exposes this as a named port.
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
