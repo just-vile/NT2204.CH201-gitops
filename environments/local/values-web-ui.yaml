@@ -9,7 +9,7 @@
 #
 # image.tag is bumped on every push-to-main by app/.github/workflows/bump-gitops.yml.
 image:
-  repository: ghcr.io/REPLACE_ME_OWNER/saga-web-ui
+  repository: ghcr.io/just-vile/saga-web-ui
   tag: dev
   pullPolicy: IfNotPresent
 

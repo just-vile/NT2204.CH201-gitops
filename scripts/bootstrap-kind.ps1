@@ -9,7 +9,7 @@
 
 .PARAMETER RepoURL
   Git URL of THIS repo (the gitops repo) that Argo CD will reconcile.
-  If omitted, the placeholder 'https://github.com/REPLACE_ME_OWNER/saga-gitops.git'
+  If omitted, the placeholder 'https://github.com/just-vile/NT2204.CH201-gitops.git'
   is left as-is and you must edit apps/*.yaml + apps/app-of-apps.yaml manually
   before running step 3.
 
@@ -17,7 +17,7 @@
   Skip 'kind create cluster' (use an existing cluster context).
 
 .EXAMPLE
-  pwsh ./scripts/bootstrap-kind.ps1 -RepoURL https://github.com/acme/saga-gitops.git
+  pwsh ./scripts/bootstrap-kind.ps1 -RepoURL https://github.com/acme/NT2204.CH201-gitops.git
 #>
 [CmdletBinding()]
 param(
@@ -65,7 +65,7 @@ try {
     $appOfApps = Get-Content apps/app-of-apps.yaml -Raw
     if ($RepoURL) {
         Write-Host "==> substituting repoURL: $RepoURL" -ForegroundColor Cyan
-        $appOfApps = $appOfApps -replace 'https://github\.com/REPLACE_ME_OWNER/saga-gitops\.git', $RepoURL
+        $appOfApps = $appOfApps -replace 'https://github\.com/just-vile/NT2204.CH201-gitops\.git', $RepoURL
     }
     $tmp = New-TemporaryFile
     Set-Content -Path $tmp -Value $appOfApps -NoNewline
@@ -85,7 +85,7 @@ try {
     Write-Host "  4. watch sync:   kubectl -n argocd get applications -w"
     Write-Host ""
     if (-not $RepoURL) {
-        Write-Host "WARNING: -RepoURL was not provided. Argo CD will fail to fetch from REPLACE_ME_OWNER/saga-gitops." -ForegroundColor Yellow
+        Write-Host "WARNING: -RepoURL was not provided. Argo CD will fail to fetch from just-vile/NT2204.CH201-gitops." -ForegroundColor Yellow
         Write-Host "         Edit apps/app-of-apps.yaml + apps/*.yaml + apps/saga-mesh.yaml to point at your fork, commit, then re-apply." -ForegroundColor Yellow
     }
 }

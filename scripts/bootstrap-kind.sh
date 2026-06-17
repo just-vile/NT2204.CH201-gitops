@@ -52,7 +52,7 @@ TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
 if [[ -n "$REPO_URL" ]]; then
     echo "==> substituting repoURL: $REPO_URL"
-    sed "s|https://github.com/REPLACE_ME_OWNER/saga-gitops.git|${REPO_URL}|g" \
+    sed "s|https://github.com/just-vile/NT2204.CH201-gitops.git|${REPO_URL}|g" \
         apps/app-of-apps.yaml > "$TMP"
 else
     cp apps/app-of-apps.yaml "$TMP"
@@ -75,7 +75,7 @@ EOF
 if [[ -z "$REPO_URL" ]]; then
     cat <<EOF
 
-WARNING: --repo-url was not provided. Argo CD will fail to fetch from REPLACE_ME_OWNER/saga-gitops.
+WARNING: --repo-url was not provided. Argo CD will fail to fetch from just-vile/NT2204.CH201-gitops.
          Edit apps/app-of-apps.yaml + apps/*.yaml + apps/saga-mesh.yaml to point at your fork, commit, then re-apply.
 EOF
 fi

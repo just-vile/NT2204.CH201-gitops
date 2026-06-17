@@ -29,13 +29,13 @@ do the same thing.
 ## Bootstrap (3 steps)
 
 > The default Argo CD `repoURL` and image repositories use the placeholder
-> `REPLACE_ME_OWNER`. Either edit the YAMLs directly **or** pass `-RepoURL` /
+> `just-vile`. Either edit the YAMLs directly **or** pass `-RepoURL` /
 > `--repo-url` to the bootstrap script and it will substitute on apply.
 
 ```powershell
 # 1. cluster + Argo CD + kick off app-of-apps
 pwsh ./scripts/bootstrap-kind.ps1 `
-  -RepoURL https://github.com/<your-org>/saga-gitops.git
+  -RepoURL https://github.com/<your-org>/NT2204.CH201-gitops.git
 
 # 2. (optional, the script does this for you) re-apply if you edited apps/
 kubectl apply -n argocd -f apps/app-of-apps.yaml
@@ -49,7 +49,7 @@ kubectl -n argocd port-forward svc/argocd-server 8080:443
 Linux/macOS:
 
 ```bash
-./scripts/bootstrap-kind.sh --repo-url https://github.com/<your-org>/saga-gitops.git
+./scripts/bootstrap-kind.sh --repo-url https://github.com/<your-org>/NT2204.CH201-gitops.git
 ```
 
 Argo CD admin password (initial):
@@ -100,7 +100,7 @@ environments/local/values-shipping-service.yaml
 environments/local/values-web-ui.yaml
 ```
 
-Image repos default to `ghcr.io/REPLACE_ME_OWNER/saga-<service>`; the
+Image repos default to `ghcr.io/just-vile/saga-<service>`; the
 `bootstrap-kind.ps1` substitution replaces only the Argo CD `repoURL`, so update
 each `values-*.yaml` `image.repository` once you know the GHCR owner (or run
 `scripts/set-image-owner.ps1` if you add one in Phase 2).
@@ -253,7 +253,7 @@ kubectl apply -k platform/argocd/
 kubectl -n argocd rollout status deploy/argocd-server --timeout=5m
 
 # 3. App-of-apps (edit repoURL first, OR use the script's substitution
-#    pattern: replace REPLACE_ME_OWNER and apply via stdin)
+#    pattern: replace just-vile and apply via stdin)
 kubectl apply -n argocd -f apps/app-of-apps.yaml
 ```
 
