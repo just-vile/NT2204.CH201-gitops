@@ -20,11 +20,12 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/rabbitmq/cluster-operator.git
-    targetRevision: v2.10.0
-    path: config/default
+    repoURL: https://github.com/just-vile/NT2204.CH201-gitops.git
+    targetRevision: main
+    path: platform/data-plane/rabbitmq-operator
     directory:
-      recurse: true
+      recurse: false
+      include: 'cluster-operator.yaml'
   destination:
     server: https://kubernetes.default.svc
     namespace: rabbitmq-system
