@@ -10,12 +10,10 @@
 # image.tag is bumped on every push-to-main by app/.github/workflows/bump-gitops.yml.
 image:
   repository: ghcr.io/just-vile/saga-web-ui
-  tag: dev
+  tag: sha-2ab5107c391daa90334d1e179ccea52b88fdbc11
   pullPolicy: IfNotPresent
-
 nameOverride: web-ui
 fullnameOverride: web-ui
-
 env:
   ASPNETCORE_ENVIRONMENT: Development
   ASPNETCORE_URLS: http://0.0.0.0:8080
