@@ -3,12 +3,10 @@
 # image.tag is bumped on every push-to-main by app/.github/workflows/bump-gitops.yml.
 image:
   repository: ghcr.io/just-vile/saga-shipping-service
-  tag: dev
+  tag: sha-2ab5107c391daa90334d1e179ccea52b88fdbc11
   pullPolicy: IfNotPresent
-
 nameOverride: shipping-service
 fullnameOverride: shipping-service
-
 # Plain env-vars (non-sensitive). Sensitive values via envFromSecrets below.
 env:
   ASPNETCORE_ENVIRONMENT: Development
@@ -17,7 +15,6 @@ env:
   RabbitMq__VirtualHost: "/"
   OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector.saga.svc.cluster.local:4317
   OTEL_EXPORTER_OTLP_PROTOCOL: grpc
-
 # Phase 2: sensitive credentials from sealed Secrets in `saga` ns.
 envFromSecrets:
   - name: RabbitMq__Username
