@@ -24,9 +24,9 @@ spec:
               cpu: 100m
               memory: 256Mi
         global:
-          # Telemetry/tracing wired in Phase 2 with the OTel Collector.
-          proxy:
-            tracer: ""
+          # # Telemetry/tracing wired in Phase 2 with the OTel Collector.
+          # proxy:
+          #   tracer: ""
           logging:
             level: "default:info"
   destination:
