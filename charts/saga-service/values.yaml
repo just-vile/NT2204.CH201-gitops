@@ -16,7 +16,8 @@ image:
   tag: dev
   pullPolicy: IfNotPresent
 
-imagePullSecrets: []
+imagePullSecrets:
+  - name: ghcr-secret
 
 serviceAccount:
   create: true
