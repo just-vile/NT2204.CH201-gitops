@@ -2,8 +2,8 @@
 *.kubeconfig
 kubeconfig*
 .kube/
-secrets/
-sealed-secrets-key*.yaml
+# secrets/
+# sealed-secrets-key*.yaml
 *-tls.yaml
 *.pem
 *.key
