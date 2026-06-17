@@ -19,6 +19,6 @@ metadata:
   labels:
     name: saga
     istio-injection: enabled
-    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce: privileged
   annotations:
     argocd.argoproj.io/sync-wave: "-20"
