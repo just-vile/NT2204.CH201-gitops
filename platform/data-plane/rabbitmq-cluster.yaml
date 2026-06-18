@@ -54,7 +54,18 @@ spec:
   # Make the management UI scrape-friendly. The operator already exposes
   # /metrics on port 15692 via the rabbitmq_prometheus plugin; the
   # cross-cutting ServiceMonitor (selecting part-of=saga) picks it up.
+  #
+  # Also keep RabbitMQ pods OUT of the mesh — `saga` has Istio injection
+  # enabled namespace-wide and the broker speaks plain AMQP from the
+  # first byte. Saga sidecars connect via the rabbitmq passthrough
+  # DestinationRules in environments/local/istio/.
   override:
+    statefulSet:
+      spec:
+        template:
+          metadata:
+            annotations:
+              sidecar.istio.io/inject: "false"
     service:
       spec:
         ports:

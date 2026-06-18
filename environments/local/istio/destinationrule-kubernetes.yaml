@@ -1,0 +1,20 @@
+# Kubernetes apiserver is NOT in the mesh. Any pod in `saga` that calls
+# kubernetes.default.svc.cluster.local (CNPG initdb, controllers, etc.)
+# would otherwise have its sidecar try to originate mTLS, and the
+# apiserver would reset the TLS handshake.
+#
+# Without this DR, jobs/operators in `saga` that use the in-cluster
+# Kubernetes client fail with `TLS handshake timeout` / `connection
+# reset by peer` to 10.x apiserver IPs.
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: kubernetes-apiserver-passthrough
+  namespace: saga
+spec:
+  host: kubernetes.default.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: DISABLE
+ 
+ 

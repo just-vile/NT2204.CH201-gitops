@@ -25,6 +25,16 @@ metadata:
 spec:
   instances: 1
 
+  # CNPG pods must NOT be sidecar-injected — Postgres uses raw TCP from
+  # the start of the connection (no SNI), and `saga` has Istio injection
+  # enabled namespace-wide. Without this annotation, instance pods AND
+  # the initdb Job pod get a sidecar; the initdb pod then fails to reach
+  # kube-apiserver because the sidecar tries to originate mTLS to a
+  # non-mesh endpoint and the apiserver resets the handshake.
+  inheritedMetadata:
+    annotations:
+      sidecar.istio.io/inject: "false"
+
   # Use a small image; bump for prod.
   imageName: ghcr.io/cloudnative-pg/postgresql:16.4
 
