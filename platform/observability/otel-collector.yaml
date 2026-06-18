@@ -28,7 +28,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+    repoURL: OpenTelemetry Helm Charts
     chart: opentelemetry-collector
     targetRevision: 0.108.0
     helm:
@@ -58,6 +58,16 @@ spec:
           app.kubernetes.io/part-of: saga
         podLabels:
           app.kubernetes.io/part-of: saga
+        # Keep the Collector OUT of the Istio mesh. Reason: saga ns is
+        # PeerAuthentication STRICT. With a sidecar, app→collector traffic
+        # would be mTLS, which is fine — but only if every saga pod has a
+        # sidecar AND nothing else interferes. Empirically (2026-06-18)
+        # spans never arrived even with both sides meshed. Excluding the
+        # Collector from the mesh + the DestinationRule
+        # `otel-collector-passthrough` (TLS DISABLE) gives a clean,
+        # plain-TCP path from app sidecar → Collector.
+        podAnnotations:
+          sidecar.istio.io/inject: "false"
         ports:
           otlp:
             enabled: true
@@ -74,7 +84,7 @@ spec:
             containerPort: 8889
             servicePort: 8889
             protocol: TCP
-
+ 
         resources:
           requests:
             cpu: 100m
@@ -82,7 +92,7 @@ spec:
           limits:
             cpu: 500m
             memory: 512Mi
-
+ 
         # Verbatim pipeline from app/build/observability/otel-collector.yaml.
         # Exporter target updated for k8s DNS: jaeger-collector.<jaeger-ns>:4317.
         config:
