@@ -13,11 +13,6 @@ kind: Ingress
 metadata:
   name: web-ui
   namespace: saga
-  annotations:
-    # Blazor Server uses a SignalR WebSocket on the same path; let nginx
-    # upgrade and keep the connection open longer than the 60s default.
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 spec:
   ingressClassName: nginx
   rules:
