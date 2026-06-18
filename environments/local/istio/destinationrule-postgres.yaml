@@ -1,0 +1,42 @@
+# Postgres (CNPG) is NOT in the mesh — its pods have no istio-proxy.
+# Without this DestinationRule, sidecars in `saga` would try to originate
+# mTLS to postgres-rw because of the mesh-wide PeerAuthentication, and
+# Postgres would reset every connection (TLS bytes vs. raw psql wire).
+#
+# Setting tls.mode: DISABLE forces plain TCP for traffic destined to the
+# CNPG Service hosts, which is what Postgres expects. Authentication is
+# still enforced by Postgres itself (pg_hba.conf + scram-sha-256).
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: postgres-rw-passthrough
+  namespace: saga
+spec:
+  host: postgres-rw.saga.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: DISABLE
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: postgres-ro-passthrough
+  namespace: saga
+spec:
+  host: postgres-ro.saga.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: DISABLE
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: postgres-r-passthrough
+  namespace: saga
+spec:
+  host: postgres-r.saga.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: DISABLE
+ 
+ 

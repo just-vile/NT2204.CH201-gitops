@@ -1,0 +1,30 @@
+# RabbitMQ Cluster Operator pods are NOT in the mesh — they have no
+# istio-proxy. Same story as postgres-*-passthrough.yaml: without these
+# DestinationRules, saga sidecars would originate mTLS to RabbitMQ and
+# the broker would reset the AMQP/management connections.
+#
+# AMQP (5672), management UI (15672), prometheus exporter (15692) all
+# need to flow as plain TCP from the sidecar to the rabbitmq pods.
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: rabbitmq-passthrough
+  namespace: saga
+spec:
+  host: rabbitmq.saga.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: DISABLE
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: rabbitmq-nodes-passthrough
+  namespace: saga
+spec:
+  host: rabbitmq-nodes.saga.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: DISABLE
+ 
+ 
