@@ -40,23 +40,24 @@ spec:
           repository: otel/opentelemetry-collector-contrib
           tag: 0.108.0
           pullPolicy: IfNotPresent
-
+ 
         mode: deployment
         replicaCount: 1
-
+ 
         # Service must be named exactly `otel-collector` so app code's
         # `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector.saga...:4317`
         # resolves without an ExternalName redirect.
         fullnameOverride: otel-collector
-
+ 
         # Standard OpenTelemetry/Saga labels so the cross-cutting
-        # ServiceMonitor picks this Service up.
-        extraLabels:
+        # ServiceMonitor picks this Service up. The chart's schema-allowed
+        # key is `additionalLabels` (applied to all rendered resources).
+        # `extraLabels` exists only under prometheusRule and is not a
+        # top-level value.
+        additionalLabels:
           app.kubernetes.io/part-of: saga
         podLabels:
           app.kubernetes.io/part-of: saga
-        service:
-          enabled: true
         ports:
           otlp:
             enabled: true
@@ -124,7 +125,7 @@ spec:
                 receivers: [otlp]
                 processors: [memory_limiter, batch]
                 exporters: [prometheus]
-
+ 
         # The chart's default ServiceMonitor competes with our cross-cutting
         # one in environments/local/service-monitors/saga-services.yaml; the
         # cross-cutting selector (part-of=saga) already covers this Service.
