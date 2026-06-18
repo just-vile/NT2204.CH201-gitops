@@ -1,0 +1,38 @@
+# Ingress for the kube-prometheus-stack Grafana UI.
+#
+# Add `<node-ip> grafana.local` to your hosts file so the host header
+# resolves (Linux: /etc/hosts, Windows: C:\Windows\System32\drivers\etc\hosts).
+#
+# Auth: Grafana has its own admin login. The admin password is sourced from
+# the SealedSecret `grafana-admin` in the `monitoring` namespace. To read it:
+#   kubectl -n monitoring get secret grafana-admin \
+#     -o jsonpath='{.data.admin-password}' | base64 -d
+#
+# Ingress controller: matches the project default (`nginx`). If your cluster
+# ships Traefik (k3s default) or another controller instead, change
+# `ingressClassName` accordingly. Verify with: `kubectl get ingressclass`.
+#
+# No NetworkPolicy exception is needed — the `monitoring` namespace has no
+# default-deny baseline (unlike `saga`).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: grafana.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kube-prometheus-stack-grafana
+                port:
+                  number: 80
+ 
+ 
