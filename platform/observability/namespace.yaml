@@ -16,7 +16,7 @@ metadata:
   name: monitoring
   labels:
     name: monitoring
-    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce: privileged
   annotations:
     argocd.argoproj.io/sync-wave: "-20"
 ---
@@ -26,6 +26,6 @@ metadata:
   name: jaeger
   labels:
     name: jaeger
-    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce: privileged
   annotations:
     argocd.argoproj.io/sync-wave: "-20"
