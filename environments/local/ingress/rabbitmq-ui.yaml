@@ -1,0 +1,62 @@
+# Ingress for the RabbitMQ management UI.
+#
+# Add `127.0.0.1 rabbitmq.local` to your /etc/hosts (or the Windows
+# equivalent at C:\Windows\System32\drivers\etc\hosts) so the host header
+# resolves locally.
+#
+# The companion NetworkPolicy below is REQUIRED. The `saga` namespace has a
+# default-deny baseline (environments/local/networkpolicies/default-deny.yaml)
+# plus an allow-mesh policy that only permits ingress from `istio-system` or
+# from inside `saga`. Without this exception the nginx controller in
+# `ingress-nginx` would be blocked from reaching the broker pod.
+#
+# Login creds come from the operator-managed Secret `rabbitmq-default-user`:
+#   kubectl -n saga get secret rabbitmq-default-user -o jsonpath='{.data.username}' | base64 -d
+#   kubectl -n saga get secret rabbitmq-default-user -o jsonpath='{.data.password}' | base64 -d
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rabbitmq-ui
+  namespace: saga
+  annotations:
+    # The management UI sets cookies on `/`; long-poll endpoints can be slow
+    # under load — give nginx more breathing room than the 60s default.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: rabbitmq.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rabbitmq          # RabbitmqCluster CR's emitted Service
+                port:
+                  number: 15672          # management plugin
+---
+# Allow the nginx ingress controller (in `ingress-nginx`) to reach the
+# RabbitMQ broker pod on port 15672. Scoped narrowly: only the broker pod,
+# only the management port, only from the controller's namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-nginx-to-rabbitmq-ui
+  namespace: saga
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: rabbitmq
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 15672
+ 

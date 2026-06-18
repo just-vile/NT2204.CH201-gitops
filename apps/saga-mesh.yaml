@@ -1,7 +1,9 @@
-# Reconciles the saga-namespace mesh policy + L3/L4 NetworkPolicies:
+# Reconciles the saga-namespace mesh policy + L3/L4 NetworkPolicies + Ingress:
 #   - environments/local/istio/        (Gateway, VirtualService, DestinationRules,
 #                                       PeerAuthentication, AuthorizationPolicy)
-#   - environments/local/networkpolicies/ (default-deny, allow-dns, allow-mesh)
+#   - environments/local/networkpolicies/ (default-deny, allow-dns, allow-mesh,
+#                                          allow-cnpg-apiserver)
+#   - environments/local/ingress/      (rabbitmq-ui and other dev-only Ingresses)
 #
 # Sync wave 5: lands AFTER the saga services (wave 0).  Default-deny applied
 # before any service exists would be safe but pointless; applying after means
@@ -18,12 +20,12 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/just-vile/NT2204.CH201-gitops.git
+    repoURL: GitHub - just-vile/NT2204.CH201-gitops
     targetRevision: main
     path: environments/local
     directory:
       recurse: true
-      include: '{istio/*.yaml,networkpolicies/*.yaml}'
+      include: '{istio/*.yaml,networkpolicies/*.yaml,ingress/*.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: saga
