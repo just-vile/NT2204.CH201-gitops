@@ -37,7 +37,7 @@ spec:
         # The chart defaults to the unstable "otelcol" image; pin to contrib
         # because we need both otlp and prometheus exporters.
         image:
-          repository: otel/opentelemetry-collector-contrib
+          repository: https://open-telemetry.github.io/opentelemetry-helm-charts
           tag: 0.108.0
           pullPolicy: IfNotPresent
  
