@@ -1,0 +1,33 @@
+# CNPG instance pods (including the *-initdb bootstrap pod) call the
+# kube-apiserver to read their owning Cluster CR before running initdb
+# (WaitForGetCluster).  The saga namespace's default-deny + allow-mesh
+# baseline blocks egress to the apiserver ClusterIP, so initdb hangs with
+# `dial tcp <apiserver>:443: i/o timeout`.
+#
+# Scope is narrowed to CNPG-managed pods via `cnpg.io/cluster: Exists`.
+# Destination ipBlock is left wide on TCP/443 + /6443 because the apiserver
+# IP varies per environment (k3s 10.43.0.1, kind 10.96.0.1, AKS managed CP)
+# and NetworkPolicy can't select a Service by name.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-cnpg-apiserver
+  namespace: saga
+spec:
+  podSelector:
+    matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443
+ 
+ 
