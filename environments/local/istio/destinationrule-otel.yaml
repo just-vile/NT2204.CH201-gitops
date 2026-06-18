@@ -1,0 +1,21 @@
+# OpenTelemetry Collector pods may NOT have an istio-proxy sidecar (the
+# Helm chart doesn't inject one and we don't enable namespace-wide
+# automatic injection by default). Same pattern as postgres/rabbitmq:
+# without this DestinationRule, the saga app sidecars would originate
+# mTLS to the Collector (because saga ns is PeerAuthentication STRICT)
+# and the Collector — having no sidecar to terminate mTLS — would reset
+# the connection. Result: traces never arrive, no error in app logs.
+#
+# This sends the OTLP gRPC traffic (4317) and OTLP HTTP (4318) as plain
+# TCP from the app sidecar to the Collector pod.
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: otel-collector-passthrough
+  namespace: saga
+spec:
+  host: otel-collector.saga.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: DISABLE
+ 
