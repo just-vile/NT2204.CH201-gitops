@@ -1,0 +1,38 @@
+# Ingress for the Jaeger query UI (distributed-trace viewer).
+#
+# Add `<node-ip> jaeger.local` to your hosts file so the host header
+# resolves (Linux: /etc/hosts, Windows: C:\Windows\System32\drivers\etc\hosts).
+# This sits next to grafana.local / argocd.local / rabbitmq.local /
+# web-ui.local on the same ingress controller — Ingress on :80 is
+# host-based virtual hosting, so they don't conflict.
+#
+# Auth: Jaeger has NO built-in authentication. The local-dev cluster is the
+# only intended exposure. Do NOT reuse this manifest in shared/prod
+# environments without fronting it (oauth2-proxy, Istio AuthZPolicy, etc.).
+#
+# Service ports on jaeger-query:
+#   16686  HTTP UI
+#   14269  admin / metrics
+# We expose only 16686.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jaeger
+  namespace: jaeger
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: jaeger.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jaeger-query
+                port:
+                  number: 16686
+ 
+ 
