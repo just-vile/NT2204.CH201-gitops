@@ -18,6 +18,11 @@ kind: Ingress
 metadata:
   name: rabbitmq-ui
   namespace: saga
+  annotations:
+    # The management UI sets cookies on `/`; long-poll endpoints can be slow
+    # under load — give nginx more breathing room than the 60s default.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
 spec:
   ingressClassName: nginx
   rules:
@@ -32,9 +37,16 @@ spec:
                 port:
                   number: 15672          # management plugin
 ---
-# Allow the nginx ingress controller (in `ingress-nginx`) to reach the
-# RabbitMQ broker pod on port 15672. Scoped narrowly: only the broker pod,
-# only the management port, only from the controller's namespace.
+# Allow the nginx ingress controller to reach the RabbitMQ broker pod on
+# port 15672. The controller is selected by **pod label**
+# (`app.kubernetes.io/name: ingress-nginx`) rather than namespace label,
+# because the controller's home namespace varies per distro
+# (`ingress-nginx`, `kube-system`, `nginx-ingress`, etc.) and not every ns
+# carries the auto-applied `kubernetes.io/metadata.name` label as expected.
+#
+# This also overrides `allow-mesh` (which restricts ingress to istio-system
+# + saga) — once any NetworkPolicy targets a pod, ingress is opt-in, and
+# multiple policies are OR'd.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -48,10 +60,12 @@ spec:
     - Ingress
   ingress:
     - from:
-        - namespaceSelector:
+        - namespaceSelector: {}              # any namespace ...
+          podSelector:                       # ... but only nginx controller pods
             matchLabels:
-              kubernetes.io/metadata.name: ingress-nginx
+              app.kubernetes.io/name: ingress-nginx
       ports:
         - protocol: TCP
           port: 15672
+ 
  
