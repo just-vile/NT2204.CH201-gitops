@@ -1,0 +1,51 @@
+# Ingress for the saga WebUI (Blazor frontend).
+#
+# Add `127.0.0.1 saga.local` (or your worker IP) to your hosts file so the
+# host header resolves locally. On the kube cluster the controller listens
+# on the same address(es) as `argocd.local` and `rabbitmq.local`.
+#
+# Companion NetworkPolicy below is REQUIRED — `saga` ns has `allow-mesh`
+# (only istio-system + saga can ingress) so the nginx controller would be
+# blocked otherwise. We restrict by port (web-ui 8080) only; tighten the
+# source in Phase 3 once the cluster's nginx install is fixed in stone.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web-ui
+  namespace: saga
+  annotations:
+    # Blazor Server uses a SignalR WebSocket on the same path; let nginx
+    # upgrade and keep the connection open longer than the 60s default.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: saga.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web-ui
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-web-ui
+  namespace: saga
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: web-ui
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080
+ 
+ 
