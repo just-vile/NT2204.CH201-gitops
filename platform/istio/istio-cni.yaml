@@ -1,0 +1,58 @@
+# Istio CNI plugin. Replaces the per-pod istio-init container so workload
+# pods do not need NET_ADMIN/NET_RAW capabilities. Required because the
+# `saga` namespace enforces Pod Security `baseline`, which forbids those
+# capabilities.
+#
+# Sync wave -4: after istiod (-5) so istiod is up before CNI installs the
+# chained CNI plugin, but before istio-ingressgateway (-3) and any saga
+# workload (0) so injected pods land on nodes that already have the CNI
+# config staged.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: istio-cni
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-4"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://istio-release.storage.googleapis.com/charts
+    chart: cni
+    targetRevision: 1.23.2
+    helm:
+      releaseName: istio-cni
+      values: |
+        cni:
+          # Standard kubeadm/AKS paths. For k3s use:
+          #   cniBinDir:  /var/lib/rancher/k3s/data/current/bin
+          #   cniConfDir: /var/lib/rancher/k3s/agent/etc/cni/net.d
+          cniBinDir: /opt/cni/bin
+          cniConfDir: /etc/cni/net.d
+          chained: true
+          privileged: true
+          # Limit CNI to namespaces with istio-injection=enabled.
+          excludeNamespaces:
+            - kube-system
+            - argocd
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: istio-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+ 
+ 
