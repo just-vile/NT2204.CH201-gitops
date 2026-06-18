@@ -1,0 +1,40 @@
+# Allow the OTel Collector (saga ns) to reach Jaeger collector (jaeger ns).
+#
+# WHY: The `saga` namespace has a default-deny + allow-mesh baseline. The
+# allow-mesh policy permits egress only to `istio-system` (xds/telemetry)
+# and within `saga` itself. The OTel Collector exports OTLP traces to
+# `jaeger-collector.jaeger.svc.cluster.local:4317`, which crosses
+# namespaces, so the export is silently dropped — services never appear
+# in the Jaeger UI.
+#
+# This policy targets ONLY the OTel Collector pod (by chart label) and
+# ONLY ports 4317 (OTLP gRPC) + 4318 (OTLP HTTP) into the `jaeger`
+# namespace. Multiple NetworkPolicies are OR'd, so this is additive on
+# top of allow-mesh.
+#
+# Label selector matches the kube-prometheus-stack/OTel chart's standard
+# pod label. Verify with:
+#   kubectl -n saga get pod -l app.kubernetes.io/name=opentelemetry-collector
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-otel-collector-to-jaeger
+  namespace: saga
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: opentelemetry-collector
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: jaeger
+      ports:
+        - protocol: TCP
+          port: 4317
+        - protocol: TCP
+          port: 4318
+ 
+ 
