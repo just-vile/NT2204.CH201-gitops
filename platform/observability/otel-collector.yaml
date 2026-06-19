@@ -28,7 +28,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: OpenTelemetry Helm Charts
+    repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
     chart: opentelemetry-collector
     targetRevision: 0.108.0
     helm:
