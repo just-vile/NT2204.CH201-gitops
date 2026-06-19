@@ -38,8 +38,10 @@ spec:
         # because we need both otlp and prometheus exporters.
         image:
           repository: https://open-telemetry.github.io/opentelemetry-helm-charts
-          tag: 0.108.0
+          tag: "0.108.0"
           pullPolicy: IfNotPresent
+        command:
+          name: otelcol-contrib
  
         mode: deployment
         replicaCount: 1
