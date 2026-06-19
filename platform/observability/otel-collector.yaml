@@ -1,157 +1,157 @@
-# OpenTelemetry Collector — single OTLP ingress for the saga services.
-#
-# Deployed in the `saga` namespace (deviation from the spec's "monitoring"
-# placement — see README§Decisions Phase 2). Reason: the app code points at
-# `http://otel-collector.saga.svc.cluster.local:4317`; deploying the
-# Collector in `saga` with `fullnameOverride: otel-collector` produces a
-# Service of exactly that name. An ExternalName redirect from monitoring
-# would also work but adds a hop and a second source of truth.
-#
-# Pipeline mirrors app/build/observability/otel-collector.yaml exactly:
-#   receivers:  otlp grpc/http (4317/4318)
-#   processors: memory_limiter -> batch
-#   exporters:  otlp/jaeger (jaeger-collector.jaeger:4317), prometheus :8889
-#   service:    telemetry pipelines for traces + metrics
-#
-# Sync wave -2: after operators, before saga services. kube-prometheus-stack
-# discovers the Collector's :8889 metrics via the cross-cutting ServiceMonitor
-# that selects `app.kubernetes.io/part-of=saga`; we set that label below.
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: otel-collector
-  namespace: argocd
-  annotations:
-    argocd.argoproj.io/sync-wave: "-2"
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
-spec:
-  project: default
-  source:
-    repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
-    chart: opentelemetry-collector
-    targetRevision: 0.108.0
-    helm:
-      releaseName: otel-collector
-      values: |
-        # The chart defaults to the unstable "otelcol" image; pin to contrib
-        # because we need both otlp and prometheus exporters.
-        # image:
-        #   repository: https://open-telemetry.github.io/opentelemetry-helm-charts
-        #   tag: "0.108.0"
-        #   pullPolicy: IfNotPresent
-        # command:
-        #   name: otelcol-contrib
+# # OpenTelemetry Collector — single OTLP ingress for the saga services.
+# #
+# # Deployed in the `saga` namespace (deviation from the spec's "monitoring"
+# # placement — see README§Decisions Phase 2). Reason: the app code points at
+# # `http://otel-collector.saga.svc.cluster.local:4317`; deploying the
+# # Collector in `saga` with `fullnameOverride: otel-collector` produces a
+# # Service of exactly that name. An ExternalName redirect from monitoring
+# # would also work but adds a hop and a second source of truth.
+# #
+# # Pipeline mirrors app/build/observability/otel-collector.yaml exactly:
+# #   receivers:  otlp grpc/http (4317/4318)
+# #   processors: memory_limiter -> batch
+# #   exporters:  otlp/jaeger (jaeger-collector.jaeger:4317), prometheus :8889
+# #   service:    telemetry pipelines for traces + metrics
+# #
+# # Sync wave -2: after operators, before saga services. kube-prometheus-stack
+# # discovers the Collector's :8889 metrics via the cross-cutting ServiceMonitor
+# # that selects `app.kubernetes.io/part-of=saga`; we set that label below.
+# apiVersion: argoproj.io/v1alpha1
+# kind: Application
+# metadata:
+#   name: otel-collector
+#   namespace: argocd
+#   annotations:
+#     argocd.argoproj.io/sync-wave: "-2"
+#   finalizers:
+#     - resources-finalizer.argocd.argoproj.io
+# spec:
+#   project: default
+#   source:
+#     repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+#     chart: opentelemetry-collector
+#     targetRevision: 0.108.0
+#     helm:
+#       releaseName: otel-collector
+#       values: |
+#         # The chart defaults to the unstable "otelcol" image; pin to contrib
+#         # because we need both otlp and prometheus exporters.
+#         image:
+#           repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+#           tag: "0.108.0"
+#           pullPolicy: IfNotPresent
+#         command:
+#           name: otelcol-contrib
  
-        mode: deployment
-        replicaCount: 1
+#         mode: deployment
+#         replicaCount: 1
  
-        # Service must be named exactly `otel-collector` so app code's
-        # `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector.saga...:4317`
-        # resolves without an ExternalName redirect.
-        fullnameOverride: otel-collector
+#         # Service must be named exactly `otel-collector` so app code's
+#         # `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector.saga...:4317`
+#         # resolves without an ExternalName redirect.
+#         fullnameOverride: otel-collector
  
-        # Standard OpenTelemetry/Saga labels so the cross-cutting
-        # ServiceMonitor picks this Service up. The chart's schema-allowed
-        # key is `additionalLabels` (applied to all rendered resources).
-        # `extraLabels` exists only under prometheusRule and is not a
-        # top-level value.
-        additionalLabels:
-          app.kubernetes.io/part-of: saga
-        podLabels:
-          app.kubernetes.io/part-of: saga
-        # Keep the Collector OUT of the Istio mesh. Reason: saga ns is
-        # PeerAuthentication STRICT. With a sidecar, app→collector traffic
-        # would be mTLS, which is fine — but only if every saga pod has a
-        # sidecar AND nothing else interferes. Empirically (2026-06-18)
-        # spans never arrived even with both sides meshed. Excluding the
-        # Collector from the mesh + the DestinationRule
-        # `otel-collector-passthrough` (TLS DISABLE) gives a clean,
-        # plain-TCP path from app sidecar → Collector.
-        podAnnotations:
-          sidecar.istio.io/inject: "false"
-        ports:
-          otlp:
-            enabled: true
-            containerPort: 4317
-            servicePort: 4317
-            protocol: TCP
-          otlp-http:
-            enabled: true
-            containerPort: 4318
-            servicePort: 4318
-            protocol: TCP
-          metrics:
-            enabled: true
-            containerPort: 8889
-            servicePort: 8889
-            protocol: TCP
+#         # Standard OpenTelemetry/Saga labels so the cross-cutting
+#         # ServiceMonitor picks this Service up. The chart's schema-allowed
+#         # key is `additionalLabels` (applied to all rendered resources).
+#         # `extraLabels` exists only under prometheusRule and is not a
+#         # top-level value.
+#         additionalLabels:
+#           app.kubernetes.io/part-of: saga
+#         podLabels:
+#           app.kubernetes.io/part-of: saga
+#         # Keep the Collector OUT of the Istio mesh. Reason: saga ns is
+#         # PeerAuthentication STRICT. With a sidecar, app→collector traffic
+#         # would be mTLS, which is fine — but only if every saga pod has a
+#         # sidecar AND nothing else interferes. Empirically (2026-06-18)
+#         # spans never arrived even with both sides meshed. Excluding the
+#         # Collector from the mesh + the DestinationRule
+#         # `otel-collector-passthrough` (TLS DISABLE) gives a clean,
+#         # plain-TCP path from app sidecar → Collector.
+#         podAnnotations:
+#           sidecar.istio.io/inject: "false"
+#         ports:
+#           otlp:
+#             enabled: true
+#             containerPort: 4317
+#             servicePort: 4317
+#             protocol: TCP
+#           otlp-http:
+#             enabled: true
+#             containerPort: 4318
+#             servicePort: 4318
+#             protocol: TCP
+#           metrics:
+#             enabled: true
+#             containerPort: 8889
+#             servicePort: 8889
+#             protocol: TCP
  
-        resources:
-          requests:
-            cpu: 100m
-            memory: 192Mi
-          limits:
-            cpu: 500m
-            memory: 512Mi
+#         resources:
+#           requests:
+#             cpu: 100m
+#             memory: 192Mi
+#           limits:
+#             cpu: 500m
+#             memory: 512Mi
  
-        # Verbatim pipeline from app/build/observability/otel-collector.yaml.
-        # Exporter target updated for k8s DNS: jaeger-collector.<jaeger-ns>:4317.
-        config:
-          receivers:
-            otlp:
-              protocols:
-                grpc:
-                  endpoint: 0.0.0.0:4317
-                http:
-                  endpoint: 0.0.0.0:4318
-          processors:
-            batch:
-              timeout: 5s
-              send_batch_size: 1024
-            memory_limiter:
-              check_interval: 5s
-              limit_percentage: 80
-              spike_limit_percentage: 25
-          exporters:
-            otlp/jaeger:
-              endpoint: jaeger-collector.jaeger.svc.cluster.local:4317
-              tls:
-                insecure: true
-            prometheus:
-              endpoint: 0.0.0.0:8889
-              resource_to_telemetry_conversion:
-                enabled: true
-            debug:
-              verbosity: basic
-          service:
-            telemetry:
-              logs:
-                level: info
-            pipelines:
-              traces:
-                receivers: [otlp]
-                processors: [memory_limiter, batch]
-                exporters: [otlp/jaeger]
-              metrics:
-                receivers: [otlp]
-                processors: [memory_limiter, batch]
-                exporters: [prometheus]
+#         # Verbatim pipeline from app/build/observability/otel-collector.yaml.
+#         # Exporter target updated for k8s DNS: jaeger-collector.<jaeger-ns>:4317.
+#         config:
+#           receivers:
+#             otlp:
+#               protocols:
+#                 grpc:
+#                   endpoint: 0.0.0.0:4317
+#                 http:
+#                   endpoint: 0.0.0.0:4318
+#           processors:
+#             batch:
+#               timeout: 5s
+#               send_batch_size: 1024
+#             memory_limiter:
+#               check_interval: 5s
+#               limit_percentage: 80
+#               spike_limit_percentage: 25
+#           exporters:
+#             otlp/jaeger:
+#               endpoint: jaeger-collector.jaeger.svc.cluster.local:4317
+#               tls:
+#                 insecure: true
+#             prometheus:
+#               endpoint: 0.0.0.0:8889
+#               resource_to_telemetry_conversion:
+#                 enabled: true
+#             debug:
+#               verbosity: basic
+#           service:
+#             telemetry:
+#               logs:
+#                 level: info
+#             pipelines:
+#               traces:
+#                 receivers: [otlp]
+#                 processors: [memory_limiter, batch]
+#                 exporters: [otlp/jaeger]
+#               metrics:
+#                 receivers: [otlp]
+#                 processors: [memory_limiter, batch]
+#                 exporters: [prometheus]
  
-        # The chart's default ServiceMonitor competes with our cross-cutting
-        # one in environments/local/service-monitors/saga-services.yaml; the
-        # cross-cutting selector (part-of=saga) already covers this Service.
-        serviceMonitor:
-          enabled: false
-        podMonitor:
-          enabled: false
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: saga
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=false
-      - ServerSideApply=true
+#         # The chart's default ServiceMonitor competes with our cross-cutting
+#         # one in environments/local/service-monitors/saga-services.yaml; the
+#         # cross-cutting selector (part-of=saga) already covers this Service.
+#         serviceMonitor:
+#           enabled: false
+#         podMonitor:
+#           enabled: false
+#   destination:
+#     server: https://kubernetes.default.svc
+#     namespace: saga
+#   syncPolicy:
+#     automated:
+#       prune: true
+#       selfHeal: true
+#     syncOptions:
+#       - CreateNamespace=false
+#       - ServerSideApply=true
