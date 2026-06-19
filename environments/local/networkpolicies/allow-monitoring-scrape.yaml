@@ -1,0 +1,37 @@
+# Allow kube-prometheus-stack (in `monitoring` ns) to scrape every saga pod.
+#
+# Without this, default-deny + allow-mesh restrict ingress to istio-system +
+# saga itself, so Prometheus dial-times-out on both :8080 (app /metrics) and
+# :15090 (Envoy sidecar /stats/prometheus). The latter is what Kiali queries
+# (istio_requests_total) to draw service-to-service edges.
+#
+# Match by namespace label (kubernetes.io/metadata.name auto-stamped by the
+# kubelet) rather than pod-selector to avoid coupling to the Prometheus pod's
+# label set, which the kube-prometheus-stack chart owns.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-monitoring-scrape
+  namespace: saga
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8080      # .NET app /metrics
+        - protocol: TCP
+          port: 15090     # Envoy sidecar /stats/prometheus  (Kiali edges)
+        - protocol: TCP
+          port: 15692     # RabbitMQ prometheus plugin
+        - protocol: TCP
+          port: 8889      # OTel Collector prometheus exporter
+        - protocol: TCP
+          port: 9187      # CNPG postgres-exporter
+ 
+ 

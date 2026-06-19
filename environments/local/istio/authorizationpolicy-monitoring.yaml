@@ -1,0 +1,34 @@
+# Allow Prometheus (monitoring ns, NOT in the mesh) to scrape app /metrics on
+# :8080 of saga workloads. Without this, the saga ns default-deny
+# AuthorizationPolicy rejects the scrape at the sidecar's inbound listener.
+#
+# Why ipBlocks and not source.namespaces:
+#   Prometheus has no sidecar, so its connection to saga sidecars is plain TCP
+#   (allowed by PeerAuthentication: PERMISSIVE). With no SPIFFE identity on
+#   the source side, source.namespaces / source.principals don't match.
+#   Pod CIDR is the only reliable selector for unmeshed clients in this cluster.
+#
+# Pod CIDR matches the kind/k8s default 10.42.0.0/16 (see scrapeUrl IPs
+# 10.42.x.y in the Prometheus targets list). Adjust if the cluster uses a
+# different range.
+#
+# Sidecar's :15090 stats endpoint is NOT covered here — it's served outside
+# the mesh data path and is gated by NetworkPolicy only.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-monitoring-scrape
+  namespace: saga
+spec:
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            ipBlocks:
+              - 10.42.0.0/16
+      to:
+        - operation:
+            methods: ["GET"]
+            paths: ["/metrics", "/stats/prometheus"]
+ 
+ 
