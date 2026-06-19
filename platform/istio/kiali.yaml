@@ -1,0 +1,133 @@
+# Kiali — service-mesh observability UI for Istio.
+#
+# Installs the official `kiali-server` Helm chart into `istio-system`. Pinned
+# to 1.89.x because that line is the supported match for Istio 1.23.x (see
+# https://kiali.io/docs/installation/installation-guide/install-with-helm/
+# and the Kiali/Istio compatibility matrix).
+#
+# Decisions:
+# 1. **Helm chart, not the `samples/addons/kiali.yaml` from istio.io.** The
+#    addon manifest is a one-shot dump aimed at quickstarts; it doesn't
+#    parametrise Prometheus/Grafana/tracing endpoints and we'd have to fork
+#    it to wire kube-prometheus-stack. The official chart is the supported
+#    install path and matches how the rest of this repo deploys components.
+# 2. **Auth `anonymous`.** Matches the comment in `kiali-ingress.yaml`:
+#    dev-only. Phase 3 should swap to `openid` (or front Kiali behind an
+#    OIDC proxy + Istio AuthorizationPolicy) before exposing on a shared
+#    cluster.
+# 3. **Tracing disabled.** Jaeger and the OTel Collector were removed from
+#    this cluster (2026-06-19). Leaving `external_services.tracing.enabled`
+#    on with no reachable backend produces a permanent red banner in the
+#    UI. Re-enable + point at the new tracing backend when one is brought
+#    back.
+# 4. **Prometheus URL pinned to `kps-prometheus.monitoring`.** Matches the
+#    `fullnameOverride: kps` set on kube-prometheus-stack
+#    (`platform/observability/kube-prometheus-stack.yaml`); same name
+#    referenced by the PrometheusRules under `environments/local/prometheus-rules/`.
+# 5. **Grafana wired in-cluster** so Kiali's "View in Grafana" links work
+#    from the UI; external_url uses the same `grafana.local` host as the
+#    other dev ingresses.
+# 6. **No chart-managed Ingress.** `kiali-ingress.yaml` already exposes
+#    `kiali.local` via the nginx Ingress class consistent with the other
+#    dev UIs (rabbitmq.local, grafana.local, argocd.local). Leaving the
+#    chart to render its own Ingress would duplicate the rule.
+#
+# Sync wave -2: after istiod (-5), istio-cni (-4), istio-ingressgateway
+# (-3); before saga workloads (0). Kiali itself does not block saga
+# services if Prometheus is briefly unreachable — it just renders empty
+# graphs until kube-prometheus-stack (wave -1) catches up.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kiali-server
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://kiali.org/helm-charts
+    chart: kiali-server
+    targetRevision: 1.89.7
+    helm:
+      releaseName: kiali-server
+      values: |
+        # Resource names default to "kiali" (Service, Deployment, SA, ConfigMap).
+        # Kept as-is so kiali-ingress.yaml's `service.name: kiali` resolves.
+        deployment:
+          instance_name: kiali
+          namespace: istio-system
+          view_only_mode: false
+          # Chart-managed Ingress is OFF — see kiali-ingress.yaml for the
+          # plain k8s Ingress used by the rest of this repo.
+          ingress:
+            enabled: false
+          service_type: ClusterIP
+          replicas: 1
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          # Keep Kiali OUT of the Istio data plane: it talks to the Istio
+          # control plane and Prometheus, doesn't need a sidecar of its own,
+          # and a sidecar would loop its own metrics into the mesh view.
+          pod_annotations:
+            sidecar.istio.io/inject: "false"
+ 
+        auth:
+          strategy: anonymous
+ 
+        # URLs Kiali stamps into hyperlinks it generates. Without these,
+        # links fall back to the in-cluster service DNS, which is unreachable
+        # from a browser.
+        server:
+          web_fqdn: kiali.local
+          web_schema: http
+          # /api and /kiali both work; default is /kiali. The plain Ingress
+          # mounts at "/" so leave web_root unset to match the chart default.
+ 
+        external_services:
+          istio:
+            root_namespace: istio-system
+            # Defaults are correct for our istiod release (`istiod` in
+            # istio-system, ConfigMap `istio`); no overrides needed.
+ 
+          prometheus:
+            url: "http://kps-prometheus.monitoring.svc.cluster.local:9090"
+            # No auth on in-cluster Prometheus.
+            auth:
+              type: none
+ 
+          grafana:
+            enabled: true
+            # In-cluster URL Kiali uses for health-check + dashboard discovery.
+            internal_url: "http://kps-grafana.monitoring.svc.cluster.local:80"
+            # Browser-facing URL Kiali embeds in "View in Grafana" links;
+            # matches grafana-ingress.yaml's host.
+            external_url: "http://grafana.local"
+            auth:
+              type: none
+ 
+          tracing:
+            # Disabled: Jaeger + OTel Collector were removed from this
+            # cluster. Re-enable when a tracing backend is restored, e.g.
+            #   enabled: true
+            #   provider: jaeger              # or "tempo"
+            #   in_cluster_url: http://jaeger-query.jaeger.svc:16686
+            #   external_url: http://jaeger.local
+            enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: istio-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
