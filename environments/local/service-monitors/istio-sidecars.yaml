@@ -1,0 +1,48 @@
+# Scrapes the Envoy sidecar's :15090/stats/prometheus so Prometheus has
+# istio_requests_total / envoy_cluster_upstream_* — the series Kiali queries to
+# draw service-to-service edges. Pairs with saga-services.yaml (app metrics on
+# :8080/metrics); the two monitors are intentionally separate concerns.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: istio-proxy
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: saga
+spec:
+  namespaceSelector:
+    matchNames:
+      - saga
+  selector:
+    matchExpressions:
+      # Auto-stamped by the Istio sidecar injector on every injected pod —
+      # avoids enumerating workloads and naturally excludes opted-out pods
+      # (rabbitmq, postgres, otel-collector) which carry sidecar.istio.io/inject=false.
+      - key: security.istio.io/tlsMode
+        operator: Exists
+  podMetricsEndpoints:
+    - path: /stats/prometheus
+      # Numeric targetPort: the injector's named port has shifted between
+      # Istio versions (http-envoy-prom vs http-monitoring); 15090 is stable.
+      targetPort: 15090
+      interval: 15s
+      scrapeTimeout: 10s
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+        - sourceLabels: [__meta_kubernetes_pod_name]
+          targetLabel: pod
+        - sourceLabels: [__meta_kubernetes_pod_label_app]
+          targetLabel: app
+          action: replace
+        - sourceLabels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          targetLabel: workload
+          action: replace
+      metricRelabelings:
+        # Keep only what Kiali + Istio dashboards need; Envoy emits thousands
+        # of per-cluster series otherwise. Tune if a dashboard needs more.
+        - sourceLabels: [__name__]
+          regex: ^(istio_.*|envoy_cluster_upstream_rq.*|envoy_cluster_upstream_cx.*)$
+          action: keep
+ 
+ 
