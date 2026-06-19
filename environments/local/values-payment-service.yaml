@@ -2,7 +2,7 @@
 #
 # image.tag is bumped on every push-to-main by app/.github/workflows/bump-gitops.yml.
 
-replicaCount: 0
+replicaCount: 1
 image:
   repository: ghcr.io/just-vile/saga-payment-service
   tag: sha-2ab5107c391daa90334d1e179ccea52b88fdbc11
